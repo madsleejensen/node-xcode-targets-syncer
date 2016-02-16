@@ -1,0 +1,16 @@
+{
+  "name": "node-xcode-targets-syncer",
+  "version": "1.0.0",
+  "description": "Tool for syncing xcode project targets",
+  "main": "index.js",
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/madsleejensen/node-xcode-targets-syncer.git"
+  },
+  "author": "Mads Lee Jensen",
+  "license": "MIT",
+  "dependencies": {
+    "extend": "^3.0.0",
+    "xcode": "^0.8.3"
+  }
+}

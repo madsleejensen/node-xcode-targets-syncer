@@ -3,42 +3,51 @@ var fs = require("fs");
 var extend = require("extend");
 var path = require("path");
 
-var filePath = 'data/TargetSync/TargetSync.xcodeproj/project.pbxproj';
+var filePath = 'test/TargetSync/TargetSync.xcodeproj/project.pbxproj';
 var project = xcode.project(filePath);
 project.parse(function(error, data) {
-    var buildFileSection = project.pbxBuildFileSection();
-        // addToPbxBuildFileSection  -- removeFromPbxBuildFileSection
 
-    var buildFileReferenceSection = project.pbxFileReferenceSection();
-        // addToPbxFileReferenceSection / removeFromPbxFileReferenceSection
+    function BuildPhaseSyncer() {
+        var buildFileSection = project.pbxBuildFileSection();
+        var buildFileReferenceSection = project.pbxFileReferenceSection();
 
-    var targetKey = project.findTargetKey('TargetSync');
-    var sourcesBuildPhase = project.pbxSourcesBuildPhaseObj(targetKey);
+        function getBuildPhaseByTargetName(targetName) {
+            var key = project.findTargetKey(targetName);
+            var buildPhase = project.pbxSourcesBuildPhaseObj(key);
 
-    var betaKey = project.findTargetKey('"TargetSync Beta"');
-    var betaSourceBuildPhase = project.pbxSourcesBuildPhaseObj(betaKey);
+            return buildPhase;
+        }
 
-    // remove all "build-files" from Beta.
-    betaSourceBuildPhase.files.forEach(function(file, index) {
-        delete buildFileSection[file.value];
-        delete buildFileSection[file.value + '_comment'];
-    });
+        this.sync = function(sourceTargetName, destinationTargetName) {
+            var sourceBuildPhase = getBuildPhaseByTargetName(sourceTargetName);
+            var destinationBuildPhase = getBuildPhaseByTargetName(destinationTargetName);
 
-    betaSourceBuildPhase.files = [];
+            // remove all build-files from the destination-target
+            destinationBuildPhase.files.forEach(function(file, index) {
+                delete buildFileSection[file.value];
+                delete buildFileSection[file.value + '_comment'];
+            });
 
-    // create new "build-files" for Beta
-    sourcesBuildPhase.files.forEach(function(file, index) {
-        var newID = project.generateUuid();
-        var buildFile = buildFileSection[file.value];
-        var fileAdjusted = extend({}, file);
-        fileAdjusted.value = newID;
+            // reset destination build phase files.
+            destinationBuildPhase.files = [];
 
-        // add file to build section
-        buildFileSection[newID] = buildFile;
+            // create new "build-files" for Beta
+            sourceBuildPhase.files.forEach(function(file, index) {
+                var newID = project.generateUuid();
+                var buildFile = buildFileSection[file.value];
+                var adjusted = extend({}, file, {value: newID});
 
-        // add file to "beta" build phase
-        betaSourceBuildPhase.files.push(fileAdjusted);
-    });
+                // add file to build section
+                buildFileSection[newID] = buildFile;
+
+                // add file to "beta" build phase
+                destinationBuildPhase.files.push(adjusted);
+            });
+        };
+    }
+
+    var syncer = new BuildPhaseSyncer();
+    syncer.sync('TargetSync', '"TargetSync Beta"');
 
     var backupDirectory = path.dirname(filePath);
     var backupFileName = path.basename(filePath) + '.orig';

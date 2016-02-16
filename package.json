@@ -10,7 +10,9 @@
   "author": "Mads Lee Jensen",
   "license": "MIT",
   "dependencies": {
+    "chalk": "^1.1.1",
     "extend": "^3.0.0",
+    "glob": "^7.0.0",
     "xcode": "^0.8.3"
   }
 }

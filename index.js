@@ -32,10 +32,45 @@ glob("**/*.pbxproj", {follow: true}, function(error, files) {
             console.log('Invalid value');
         }
         else {
-            sync(files[index-1]);
+            var project = xcode.project(files[index-1]);
+            project.parse((error, data) => {
+                var targets = project.pbxNativeTargetSection();
+                var filtered = [];
+
+                Object.keys(targets).forEach((key, index) => {
+                    var target = targets[key];
+                    if (target.name) {
+                        filtered.push(target);
+                    }
+                });
+
+                console.log("");
+
+                filtered.forEach((target, index) => {
+                    console.log("    [%d] %s", (index+1), target.name);
+                });
+
+                console.log("");
+
+                rl.question('Choose target to copy from: ', (answer) => {
+
+                    rl.question('Choose a target to override: ', (answer) => {
+
+                        console.log("    [1] Source files");
+                        console.log("    [2] Frameworks");
+                        console.log("    [3] Resources");
+                        console.log("    [4] All");
+
+                        rl.question('What would you like to sync: ', (answer) => {
+                            
+                        });
+                    });
+
+                });
+            });
         }
 
-        rl.close();
+        // rl.close();
     });
 });
 

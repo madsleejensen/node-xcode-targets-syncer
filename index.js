@@ -5,72 +5,82 @@ const path = require("path");
 const glob = require("glob");
 const readline = require("readline");
 const chalk = require("chalk");
+const inquirer = require("inquirer");
 
-glob("**/*.pbxproj", {follow: true}, function(error, files) {
+function locateProjectsInPath(callback) {
+    glob("**/*.pbxproj", {follow: true}, callback);
+}
+
+locateProjectsInPath((error, files) => {
     if (files.length == 0) {
-        console.log("Unable to find any projects (*.xcodeproj)");
+        console.log("Unable to find any projects (*.pbxproj)");
         return;
     }
 
-    console.log("Found the following xcode projects:");
-    console.log("");
+    var question = [{
+        type: 'rawlist',
+        name: 'project',
+        message: 'What project would you like to target?',
+        choices: files
+    }];
 
-    files.forEach(function(file, index) {
-        console.log("    [%d] %s", (index+1), file);
-    });
+    // ask user to select a project file.
+    inquirer.prompt(question, (answers) => {
 
-    console.log("");
+        var project = xcode.project(answers.project);
+        project.parse((error, data) => {
 
-    var rl = readline.createInterface({
-      input: process.stdin,
-      output: process.stdout
-    });
+            var targets = project.pbxNativeTargetSection();
+            var filtered = [];
 
-    rl.question('What project would you like to target? ', (answer) => {
-        var index = parseInt(answer);
-        if (index < 1 || index > files.length) {
-            console.log('Invalid value');
-        }
-        else {
-            var project = xcode.project(files[index-1]);
-            project.parse((error, data) => {
-                var targets = project.pbxNativeTargetSection();
-                var filtered = [];
-
-                Object.keys(targets).forEach((key, index) => {
-                    var target = targets[key];
-                    if (target.name) {
-                        filtered.push(target);
-                    }
-                });
-
-                console.log("");
-
-                filtered.forEach((target, index) => {
-                    console.log("    [%d] %s", (index+1), target.name);
-                });
-
-                console.log("");
-
-                rl.question('Choose target to copy from: ', (answer) => {
-
-                    rl.question('Choose a target to override: ', (answer) => {
-
-                        console.log("    [1] Source files");
-                        console.log("    [2] Frameworks");
-                        console.log("    [3] Resources");
-                        console.log("    [4] All");
-
-                        rl.question('What would you like to sync: ', (answer) => {
-                            
-                        });
-                    });
-
-                });
+            Object.keys(targets).forEach((key, index) => {
+                var target = targets[key];
+                if (target.name) {
+                    filtered.push(target);
+                }
             });
-        }
 
-        // rl.close();
+            if (filtered.length < 2) {
+                console.log('The selected project should have atleast two targets');
+                return;
+            }
+
+            filtered = filtered.map(item => {
+                return {
+                    name: item.name,
+                    value: item
+                }
+            });
+
+            // ask user to select source / destination targets
+            var questions = [
+                {
+                    type: 'rawlist',
+                    name: 'source',
+                    message: 'Choose target to copy from',
+                    choices: filtered
+                },
+                {
+                    type: 'rawlist',
+                    name: 'destination',
+                    message: 'Choose a target to override',
+                    choices: function(answers) {
+                        return filtered.filter(item => item.value !== answers.source);
+                    }
+                },
+                {
+                    type: 'rawlist',
+                    name: 'sync',
+                    message: 'What would you like to sync',
+                    choices: ['Source files', 'Frameworks', 'Resources', 'Everything']
+                }
+            ];
+
+            inquirer.prompt(questions, (answers) => {
+                console.log(answers);
+            });
+
+        });
     });
 });
 

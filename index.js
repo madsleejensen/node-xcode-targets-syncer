@@ -72,12 +72,37 @@ locateProjectsInPath((error, files) => {
                     type: 'rawlist',
                     name: 'sync',
                     message: 'What would you like to sync',
-                    choices: ['Source files', 'Frameworks', 'Resources', 'Everything']
+                    choices: [
+                        {name: 'Source files', value: 'files'},
+                        {name: 'Frameworks', value: 'frameworks'},
+                        {name: 'Resources', value: 'resources'},
+                        {name: 'Everything', value: 'all'}
+                    ]
                 }
             ];
 
             inquirer.prompt(questions, (answers) => {
                 console.log(answers);
+                /*
+                var syncer = new BuildPhaseSyncer(project, answers.source, answers.destination);
+                switch (answers.sync) {
+                    case 'files':
+                        syncer.syncFiles();
+                        break;
+
+                    case 'frameworks':
+                        syncer.syncFrameworks();
+                        break;
+
+                    case 'resources':
+                        syncer.syncResources();
+                        break;
+
+                    case 'all':
+                        syncer.syncAll();
+                        break;
+                }
+                */
             });
 
         });

@@ -5,7 +5,6 @@ const fs = require("fs");
 const extend = require("extend");
 const path = require("path");
 const glob = require("glob");
-const readline = require("readline");
 const chalk = require("chalk");
 const inquirer = require("inquirer");
 
@@ -86,24 +85,26 @@ locateProjectsInPath((error, files) => {
             ];
 
             inquirer.prompt(questions, (answers) => {
-                console.log(answers);
-                /*
-                var syncer = new BuildPhaseSyncer(project, answers.source, answers.destination);
+
                 switch (answers.sync) {
                     case 'files':
-                        syncer.syncFiles();
+
+                        var sources = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
+                        sources.syncFiles();
+
                         break;
 
                     case 'frameworks':
-                        syncer.syncFrameworks();
+
                         break;
 
                     case 'resources':
-                        syncer.syncResources();
+
                         break;
 
                     case 'all':
-                        syncer.syncAll();
+
+
                         break;
                 }
                 */
@@ -166,5 +167,7 @@ class SourcesBuildPhaseSyncer {
             // add build-file reference to the destination build phase files.
             overrideBuildPhase.files.push(newBuildPhaseFile);
         });
+
+        // @todo console.log diff's ... added / removed / modified. 
     }
 }

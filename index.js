@@ -1,3 +1,5 @@
+"use strict"
+
 const xcode = require("xcode");
 const fs = require("fs");
 const extend = require("extend");
@@ -19,22 +21,24 @@ locateProjectsInPath((error, files) => {
 
     var question = [{
         type: 'rawlist',
-        name: 'project',
+        name: 'path',
         message: 'What project would you like to target?',
         choices: files
     }];
 
     // ask user to select a project file.
-    inquirer.prompt(question, (answers) => {
+    inquirer.prompt(question, (projectsAnswer) => {
 
-        var project = xcode.project(answers.project);
+        var project = xcode.project(projectsAnswer.path);
         project.parse((error, data) => {
 
             var targets = project.pbxNativeTargetSection();
             var filtered = [];
 
+            // filter out "_comment" targets from the list
             Object.keys(targets).forEach((key, index) => {
                 var target = targets[key];
+
                 if (target.name) {
                     filtered.push(target);
                 }
@@ -57,13 +61,13 @@ locateProjectsInPath((error, files) => {
                 {
                     type: 'rawlist',
                     name: 'source',
-                    message: 'Choose target to copy from',
+                    message: 'Choose target to copy ' + chalk.bold.underline.yellow("from"),
                     choices: filtered
                 },
                 {
                     type: 'rawlist',
                     name: 'destination',
-                    message: 'Choose a target to override',
+                    message: 'Choose a target to ' + chalk.bold.underline.yellow("override"),
                     choices: function(answers) {
                         return filtered.filter(item => item.value !== answers.source);
                     }
@@ -103,63 +107,64 @@ locateProjectsInPath((error, files) => {
                         break;
                 }
                 */
+
+                var syncer = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
+                syncer.syncFiles();
+
+                var backupDirectory = path.dirname(projectsAnswer.path);
+                var backupFileName = path.basename(projectsAnswer.path) + '.orig';
+                var backupFilePath = path.join(backupDirectory, backupFileName);
+
+                fs.renameSync(projectsAnswer.path, backupFilePath);
+                fs.writeFileSync(projectsAnswer.path, project.writeSync());
             });
 
         });
     });
 });
 
-function sync(projectFilePath) {
-  var project = xcode.project(projectFilePath);
-  project.parse(function(error, data) {
 
-      function BuildPhaseSyncer() {
-          var buildFileSection = project.pbxBuildFileSection();
-          var buildFileReferenceSection = project.pbxFileReferenceSection();
+class SourcesBuildPhaseSyncer {
 
-          function getBuildPhaseByTargetName(targetName) {
-              var key = project.findTargetKey(targetName);
-              var buildPhase = project.pbxSourcesBuildPhaseObj(key);
+    constructor(project, sourceTarget, overrideTarget) {
+        this.project = project;
+        this.sourceTarget = sourceTarget;
+        this.overrideTarget = overrideTarget;
 
-              return buildPhase;
-          }
+        this.buildFileSection = project.pbxBuildFileSection();
+        this.buildFileReferenceSection = project.pbxSourcesBuildPhaseObj();
+    }
 
-          this.sync = function(sourceTargetName, destinationTargetName) {
-              var sourceBuildPhase = getBuildPhaseByTargetName(sourceTargetName);
-              var destinationBuildPhase = getBuildPhaseByTargetName(destinationTargetName);
+    getSourcesBuildPhaseByTarget(target) {
+        var targetKey = this.project.findTargetKey(target.name);
+        var buildPhase = this.project.pbxSourcesBuildPhaseObj(targetKey);
+        return buildPhase;
+    }
 
-              // remove all build-files from the destination-target
-              destinationBuildPhase.files.forEach(function(file, index) {
-                  delete buildFileSection[file.value];
-                  delete buildFileSection[file.value + '_comment'];
-              });
+    syncFiles() {
+        var sourceBuildPhase = this.getSourcesBuildPhaseByTarget(this.sourceTarget);
+        var overrideBuildPhase = this.getSourcesBuildPhaseByTarget(this.overrideTarget);
 
-              // reset destination build phase files.
-              destinationBuildPhase.files = [];
+        // remove all build-files from the override-target
+        overrideBuildPhase.files.forEach((file, index) => {
+            delete this.buildFileSection[file.value];
+            delete this.buildFileSection[file.value + '_comment'];
+        });
 
-              // create new "build-files" for Beta
-              sourceBuildPhase.files.forEach(function(file, index) {
-                  var newID = project.generateUuid();
-                  var sourceBuildFile = buildFileSection[file.value];
-                  var newBuildPhaseFile = extend({}, file, {value: newID});
+        // reset override build phase files.
+        overrideBuildPhase.files = [];
 
-                  // add file to build section (same file-ref but using a new id)
-                  buildFileSection[newID] = extend({}, sourceBuildFile);
+        // create new "build-files" for Beta
+        sourceBuildPhase.files.forEach((file, index) => {
+            var newID = this.project.generateUuid();
+            var sourceBuildFile = this.buildFileSection[file.value];
+            var newBuildPhaseFile = extend({}, file, {value: newID});
 
-                  // add build-file reference to the destination build phase files.
-                  destinationBuildPhase.files.push(newBuildPhaseFile);
-              });
-          };
-      }
+            // add file to build section (same file-ref but using a new id)
+            this.buildFileSection[newID] = extend({}, sourceBuildFile);
 
-      var syncer = new BuildPhaseSyncer();
-      syncer.sync('TargetSync', '"TargetSync Beta"');
-
-      var backupDirectory = path.dirname(projectFilePath);
-      var backupFileName = path.basename(projectFilePath) + '.orig';
-      var backupFilePath = path.join(backupDirectory, backupFileName);
-
-      fs.renameSync(projectFilePath, backupFilePath);
-      fs.writeFileSync(projectFilePath, project.writeSync());
-  });
+            // add build-file reference to the destination build phase files.
+            overrideBuildPhase.files.push(newBuildPhaseFile);
+        });
+    }
 }

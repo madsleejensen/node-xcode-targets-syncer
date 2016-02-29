@@ -31,6 +31,10 @@ locateProjectsInPath((error, files) => {
         var project = xcode.project(projectsAnswer.path);
         project.parse((error, data) => {
 
+            console.log(project.pbxFrameworksBuildPhaseObj('C7AD15391C71DFFD007CE89F'));
+            console.log(project.pbxResourcesBuildPhaseObj('C7AD15391C71DFFD007CE89F'));
+
+
             var targets = project.pbxNativeTargetSection();
             var filtered = [];
 
@@ -107,7 +111,6 @@ locateProjectsInPath((error, files) => {
 
                         break;
                 }
-                */
 
                 var syncer = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
                 syncer.syncFiles();
@@ -147,27 +150,65 @@ class SourcesBuildPhaseSyncer {
         var overrideBuildPhase = this.getSourcesBuildPhaseByTarget(this.overrideTarget);
 
         // remove all build-files from the override-target
-        overrideBuildPhase.files.forEach((file, index) => {
-            delete this.buildFileSection[file.value];
-            delete this.buildFileSection[file.value + '_comment'];
-        });
+        this.resetBuildPhaseFiles(overrideBuildPhase.files);
+        // overrideBuildPhase.files.forEach((file, index) => {
+        //     delete this.buildFileSection[file.value];
+        //     delete this.buildFileSection[file.value + '_comment'];
+        // });
 
         // reset override build phase files.
-        overrideBuildPhase.files = [];
+        overrideBuildPhase.files = this.syncPhaseFiles(sourceBuildPhase.files);
 
         // create new "build-files" for Beta
-        sourceBuildPhase.files.forEach((file, index) => {
+        // sourceBuildPhase.files.forEach((file, index) => {
+        //     var newID = this.project.generateUuid();
+        //     var sourceBuildFile = this.buildFileSection[file.value];
+        //
+        //     var newBuildPhaseFile = extend({}, file, {value: newID});
+        //
+        //     // add file to build section (same file-ref but using a new id)
+        //     this.buildFileSection[newID] = extend({}, sourceBuildFile);
+        //
+        //     // add build-file reference to the destination build phase files.
+        //     overrideBuildPhase.files.push(newBuildPhaseFile);
+        // });
+
+        // @todo console.log diff's ... added / removed
+    }
+
+    syncFrameworks() {
+
+    }
+
+    syncResources() {
+
+    }
+
+    resetBuildPhaseFiles(buildPhaseFiles) {
+        buildPhaseFiles.forEach(phaseFile => {
+            // remove files from "build-file" section
+            delete this.buildFileSection[phaseFile.value];
+            delete this.buildFileSection[phaseFile.value + '_comment'];
+        })
+    }
+
+    syncPhaseFiles(phaseFiles) {
+        var newPhaseFiles = [];
+
+        phaseFiles.forEach(phaseFile => {
             var newID = this.project.generateUuid();
-            var sourceBuildFile = this.buildFileSection[file.value];
-            var newBuildPhaseFile = extend({}, file, {value: newID});
+            var buildFile = this.buildFileSection[phaseFile.value];
+
+            // clone phase-file, but override the "id"
+            var duplicatePhaseFile = extend({}, phaseFile, {value: newID});
 
             // add file to build section (same file-ref but using a new id)
-            this.buildFileSection[newID] = extend({}, sourceBuildFile);
+            this.buildFileSection[newID] = extend({}, buildFile);
 
-            // add build-file reference to the destination build phase files.
-            overrideBuildPhase.files.push(newBuildPhaseFile);
+            // add build-file to phase file list.
+            newPhaseFiles.push(duplicatePhaseFile);
         });
 
-        // @todo console.log diff's ... added / removed / modified. 
+        return newPhaseFiles;
     }
 }

@@ -30,11 +30,6 @@ locateProjectsInPath((error, files) => {
 
         var project = xcode.project(projectsAnswer.path);
         project.parse((error, data) => {
-
-            console.log(project.pbxFrameworksBuildPhaseObj('C7AD15391C71DFFD007CE89F'));
-            console.log(project.pbxResourcesBuildPhaseObj('C7AD15391C71DFFD007CE89F'));
-
-
             var targets = project.pbxNativeTargetSection();
             var filtered = [];
 
@@ -90,25 +85,25 @@ locateProjectsInPath((error, files) => {
 
             inquirer.prompt(questions, (answers) => {
 
+                var sources = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
+
                 switch (answers.sync) {
                     case 'files':
-
-                        var sources = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
                         sources.syncFiles();
-
                         break;
 
                     case 'frameworks':
-
+                        sources.syncFrameworks();
                         break;
 
                     case 'resources':
-
+                        sources.syncResources();
                         break;
 
                     case 'all':
-
-
+                        sources.syncFiles();
+                        sources.syncFrameworks();
+                        sources.syncResources();
                         break;
                 }
 
@@ -139,51 +134,48 @@ class SourcesBuildPhaseSyncer {
         this.buildFileReferenceSection = project.pbxSourcesBuildPhaseObj();
     }
 
-    getSourcesBuildPhaseByTarget(target) {
-        var targetKey = this.project.findTargetKey(target.name);
-        var buildPhase = this.project.pbxSourcesBuildPhaseObj(targetKey);
-        return buildPhase;
+    getSourceTargetKey() {
+        return this.project.findTargetKey(this.sourceTarget.name);
+    }
+
+    getOverrideTargetKey() {
+        return this.project.findTargetKey(this.overrideTarget.name);
     }
 
     syncFiles() {
-        var sourceBuildPhase = this.getSourcesBuildPhaseByTarget(this.sourceTarget);
-        var overrideBuildPhase = this.getSourcesBuildPhaseByTarget(this.overrideTarget);
+        var sourcePhase = this.project.pbxSourcesBuildPhaseObj( this.getSourceTargetKey() );
+        var overridePhase = this.project.pbxSourcesBuildPhaseObj( this.getOverrideTargetKey() );
 
-        // remove all build-files from the override-target
-        this.resetBuildPhaseFiles(overrideBuildPhase.files);
-        // overrideBuildPhase.files.forEach((file, index) => {
-        //     delete this.buildFileSection[file.value];
-        //     delete this.buildFileSection[file.value + '_comment'];
-        // });
-
-        // reset override build phase files.
-        overrideBuildPhase.files = this.syncPhaseFiles(sourceBuildPhase.files);
-
-        // create new "build-files" for Beta
-        // sourceBuildPhase.files.forEach((file, index) => {
-        //     var newID = this.project.generateUuid();
-        //     var sourceBuildFile = this.buildFileSection[file.value];
-        //
-        //     var newBuildPhaseFile = extend({}, file, {value: newID});
-        //
-        //     // add file to build section (same file-ref but using a new id)
-        //     this.buildFileSection[newID] = extend({}, sourceBuildFile);
-        //
-        //     // add build-file reference to the destination build phase files.
-        //     overrideBuildPhase.files.push(newBuildPhaseFile);
-        // });
+        this.syncPhases(sourcePhase, overridePhase);
 
         // @todo console.log diff's ... added / removed
     }
 
     syncFrameworks() {
+        var sourcePhase = this.project.pbxFrameworksBuildPhaseObj( this.getSourceTargetKey() );
+        var overridePhase = this.project.pbxFrameworksBuildPhaseObj( this.getOverrideTargetKey() );
 
+        this.syncPhases(sourcePhase, overridePhase);
     }
 
     syncResources() {
+        var sourcePhase = this.project.pbxResourcesBuildPhaseObj( this.getSourceTargetKey() );
+        var overridePhase = this.project.pbxResourcesBuildPhaseObj( this.getOverrideTargetKey() );
 
+        this.syncPhases(sourcePhase, overridePhase);
     }
 
+    syncPhases(sourcePhase, overridePhase) {
+        // remove all build-files from the override-target
+        this.resetBuildPhaseFiles(overridePhase.files);
+
+        // reset override build phase files.
+        overridePhase.files = this.duplicatePhaseFiles(sourcePhase.files);
+    }
+
+    /**
+     * Takes a collection of build-phase-files and remove them from the "build-section"
+     */
     resetBuildPhaseFiles(buildPhaseFiles) {
         buildPhaseFiles.forEach(phaseFile => {
             // remove files from "build-file" section
@@ -192,7 +184,10 @@ class SourcesBuildPhaseSyncer {
         })
     }
 
-    syncPhaseFiles(phaseFiles) {
+    /**
+     * Duplicates a phase-files collection, with all entries assigned new file-id's.
+     */
+    duplicatePhaseFiles(phaseFiles) {
         var newPhaseFiles = [];
 
         phaseFiles.forEach(phaseFile => {

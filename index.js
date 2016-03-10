@@ -7,6 +7,7 @@ const path = require("path");
 const glob = require("glob");
 const chalk = require("chalk");
 const inquirer = require("inquirer");
+const _ = require('lodash/collection')
 
 function locateProjectsInPath(callback) {
     glob("**/*.pbxproj", {follow: true}, callback);
@@ -84,7 +85,6 @@ locateProjectsInPath((error, files) => {
             ];
 
             inquirer.prompt(questions, (answers) => {
-
                 var sources = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
 
                 switch (answers.sync) {
@@ -116,6 +116,9 @@ locateProjectsInPath((error, files) => {
 
                 fs.renameSync(projectsAnswer.path, backupFilePath);
                 fs.writeFileSync(projectsAnswer.path, project.writeSync());
+
+                console.log('project targets () () was successfully synced')
+
             });
 
         });
@@ -131,7 +134,7 @@ class SourcesBuildPhaseSyncer {
         this.overrideTarget = overrideTarget;
 
         this.buildFileSection = project.pbxBuildFileSection();
-        this.buildFileReferenceSection = project.pbxSourcesBuildPhaseObj();
+        this.fileReferenceSection = project.pbxFileReferenceSection();
     }
 
     getSourceTargetKey() {
@@ -166,11 +169,46 @@ class SourcesBuildPhaseSyncer {
     }
 
     syncPhases(sourcePhase, overridePhase) {
+        let overrideBuildFiles = overridePhase.files.map(phaseFile => this.buildFileSection[phaseFile.value])
+        let sourceBuildFiles = sourcePhase.files.map(phaseFile => this.buildFileSection[phaseFile.value])
+
+        let removed = []
+        let changed = []
+        let added = sourceBuildFiles.filter(buildFile => {
+            return _.find(overrideBuildFiles, file => file.fileRef == buildFile.fileRef) === undefined
+        })
+
+        overrideBuildFiles.forEach(buildFile => {
+            let sourceBuildFile = _.find(sourceBuildFiles, file => file.fileRef == buildFile.fileRef)
+
+            if (!sourceBuildFile) {
+                removed.push(buildFile)
+            }
+            else {
+                let isDifferent =  JSON.stringify(buildFile) !== JSON.stringify(sourceBuildFile)
+                if (isDifferent) {
+                    changed.push(buildFile)
+                }
+            }
+        })
+
+        console.log("removed", removed);
+        console.log("changed", changed);
+        console.log("added", added);
+        // return;
+
         // remove all build-files from the override-target
         this.resetBuildPhaseFiles(overridePhase.files);
 
         // reset override build phase files.
         overridePhase.files = this.duplicatePhaseFiles(sourcePhase.files);
+    }
+
+    getFileReferenceByPhaseFile(phaseFile) {
+        const buildFile = this.buildFileSection[phaseFile.value]
+        const fileRef = this.fileReferenceSection[buildFile.fileRef]
+
+        return fileRef
     }
 
     /**

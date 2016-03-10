@@ -246,12 +246,6 @@ class SourcesBuildPhaseSyncer {
             }
         })
 
-        return {
-            removed,
-            changed,
-            added
-        }
-
         // remove all build-files from the override-target
         this.resetBuildPhaseFiles(overridePhase.files);
 

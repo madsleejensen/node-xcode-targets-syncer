@@ -107,9 +107,6 @@ locateProjectsInPath((error, files) => {
                         break;
                 }
 
-                var syncer = new SourcesBuildPhaseSyncer(project, answers.source, answers.destination);
-                syncer.syncFiles();
-
                 var backupDirectory = path.dirname(projectsAnswer.path);
                 var backupFileName = path.basename(projectsAnswer.path) + '.orig';
                 var backupFilePath = path.join(backupDirectory, backupFileName);
@@ -146,26 +143,33 @@ class SourcesBuildPhaseSyncer {
     }
 
     syncFiles() {
-        var sourcePhase = this.project.pbxSourcesBuildPhaseObj( this.getSourceTargetKey() );
-        var overridePhase = this.project.pbxSourcesBuildPhaseObj( this.getOverrideTargetKey() );
+        const sourcePhase = this.project.pbxSourcesBuildPhaseObj( this.getSourceTargetKey() );
+        const overridePhase = this.project.pbxSourcesBuildPhaseObj( this.getOverrideTargetKey() );
+        const diffs = this.syncPhases(sourcePhase, overridePhase);
 
-        this.syncPhases(sourcePhase, overridePhase);
-
-        // @todo console.log diff's ... added / removed
+        this.outputDiffForPhase('Files', diffs)
     }
 
     syncFrameworks() {
-        var sourcePhase = this.project.pbxFrameworksBuildPhaseObj( this.getSourceTargetKey() );
-        var overridePhase = this.project.pbxFrameworksBuildPhaseObj( this.getOverrideTargetKey() );
+        const sourcePhase = this.project.pbxFrameworksBuildPhaseObj( this.getSourceTargetKey() );
+        const overridePhase = this.project.pbxFrameworksBuildPhaseObj( this.getOverrideTargetKey() );
+        const diffs = this.syncPhases(sourcePhase, overridePhase);
 
-        this.syncPhases(sourcePhase, overridePhase);
+        this.outputDiffForPhase('Frameworks', diffs)
     }
 
     syncResources() {
-        var sourcePhase = this.project.pbxResourcesBuildPhaseObj( this.getSourceTargetKey() );
-        var overridePhase = this.project.pbxResourcesBuildPhaseObj( this.getOverrideTargetKey() );
+        const sourcePhase = this.project.pbxResourcesBuildPhaseObj( this.getSourceTargetKey() );
+        const overridePhase = this.project.pbxResourcesBuildPhaseObj( this.getOverrideTargetKey() );
+        const diffs = this.syncPhases(sourcePhase, overridePhase);
 
-        this.syncPhases(sourcePhase, overridePhase);
+        this.outputDiffForPhase('Resources', diffs)
+    }
+
+    outputDiffForPhase(phaseName, diffs) {
+        console.log(phaseName + ' synced:');
+        console.log(diffs)
+        console.log("----")
     }
 
     syncPhases(sourcePhase, overridePhase) {
@@ -192,23 +196,23 @@ class SourcesBuildPhaseSyncer {
             }
         })
 
-        console.log("removed", removed);
-        console.log("changed", changed);
-        console.log("added", added);
-        // return;
+        return {
+            removed,
+            changed,
+            added
+        }
 
         // remove all build-files from the override-target
         this.resetBuildPhaseFiles(overridePhase.files);
 
         // reset override build phase files.
         overridePhase.files = this.duplicatePhaseFiles(sourcePhase.files);
-    }
 
-    getFileReferenceByPhaseFile(phaseFile) {
-        const buildFile = this.buildFileSection[phaseFile.value]
-        const fileRef = this.fileReferenceSection[buildFile.fileRef]
-
-        return fileRef
+        return {
+            removed,
+            changed,
+            added
+        }
     }
 
     /**

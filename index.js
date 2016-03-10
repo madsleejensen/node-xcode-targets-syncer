@@ -115,7 +115,6 @@ locateProjectsInPath((error, files) => {
                 fs.writeFileSync(projectsAnswer.path, project.writeSync());
 
                 console.log('project targets () () was successfully synced')
-
             });
 
         });
@@ -167,9 +166,60 @@ class SourcesBuildPhaseSyncer {
     }
 
     outputDiffForPhase(phaseName, diffs) {
-        console.log(phaseName + ' synced:');
-        console.log(diffs)
-        console.log("----")
+        console.log("");
+
+        if (diffs.removed.length == 0 && diffs.changed.length == 0 && diffs.added.length == 0) {
+            console.log(chalk.bold(phaseName + ' synced: ') + chalk.dim.underline('no changes'))
+            console.log("")
+        }
+        else {
+            console.log(chalk.bold(phaseName + ' synced:'));
+        }
+
+        if (diffs.removed.length > 0) {
+            console.log("===================================")
+            console.log(chalk.bold(diffs.removed.length) + ' files were removed')
+            console.log("===================================")
+
+            diffs.removed.forEach(item => {
+                let fileRef = this.fileReferenceSection[item.fileRef]
+                let message = '[' + chalk.bold.red('-') + '] ' + fileRef.path
+
+                console.log(message)
+            })
+
+            console.log("")
+        }
+
+        if (diffs.changed.length > 0) {
+            console.log("===================================")
+            console.log(chalk.bold(diffs.changed.length) + ' files were changed')
+            console.log("===================================")
+
+            diffs.changed.forEach(item => {
+                let fileRef = this.fileReferenceSection[item.fileRef]
+                let message = '[' + chalk.bold.blue('-') + '] ' + fileRef.path
+
+                console.log(message)
+            })
+
+            console.log("")
+        }
+
+        if (diffs.added.length > 0) {
+            console.log("===================================")
+            console.log(chalk.bold(diffs.added.length) + ' files were added')
+            console.log("===================================")
+
+            diffs.added.forEach(item => {
+                let fileRef = this.fileReferenceSection[item.fileRef]
+                let message = '[' + chalk.bold.yellow('+') + '] ' + fileRef.path
+
+                console.log(message)
+            })
+
+            console.log("")
+        }
     }
 
     syncPhases(sourcePhase, overridePhase) {
